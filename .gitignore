@@ -1,0 +1,28 @@
+
+# Ignore node_modules directory (where dependencies are installed)
+node_modules/
+
+# Ignore log files
+*.log
+
+# Ignore environment configuration files (such as .env)
+.env
+
+# Ignore any built or compiled files
+/dist/
+/build/
+/out/
+temp/*
+
+# Ignore npm debug logs
+npm-debug.log
+
+# Ignore yarn lock file
+yarn.lock
+
+# Ignore VSCode specific files and folders
+.vscode/
+*.code-workspace
+
+# Ignore macOS specific files
+.DS_Store
