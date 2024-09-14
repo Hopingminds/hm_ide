@@ -139,7 +139,7 @@ const runJsTestCase = async (req, res) => {
 		}
 
 		// Check if the provided testCase exists
-		if (testCase > IP.Inputs.length || !IP.Output[testCase]) {
+		if (testCase >= IP.Inputs.length || !IP.Output[testCase]) {
 			return res.status(404).json({ success: false, message: `No test case found for the given index ${testCase+1}` });
 		}
 
@@ -183,7 +183,7 @@ const runJsTestCase = async (req, res) => {
 		exec(`node ${filePath}.js`, (error, stdout, stderr) => {
 			if (error) {
 				console.error(`Error: ${error.message}`);
-				// fs.unlink(`${filePath}.js`, () => {}); // Clean up file on error
+				fs.unlink(`${filePath}.js`, () => {}); // Clean up file on error
 				return res.status(500).json({ success: false, message: `Execution failed: ${error.message}` });
 			}
 
@@ -219,193 +219,262 @@ const runJsTestCase = async (req, res) => {
 
 
 /** C++ **/
-const compileCpp = async (req, res) => {
+const runAllCppTestCases = async (req, res) => {
 	try {
-		const { Id, cppCode } = req.body;
-		const IP = await Product.find({ Id: Id }, { Inputs: 1, _id: 0 });
-		var timestamp = new Date().getTime();
+		let { Id, cppCode } = req.body;
+
+		if (!Id || !cppCode || !cppCode.includes('MainFunction')) {
+			return res.status(400).json({ error: 'Missing or invalid fields', message: 'Please provide a valid Id and C++ code with the required function' });
+		}
+
+		const IP = await Product.findOne({ Id: Id }, { Inputs: 1, Output: 1, _id: 0 });
+		if (!IP) {
+			return res.status(404).json({ error: 'Not found', message: 'No problem found for the given ID' });
+		}
+
+		const allTestResults = [];
+
+		// Iterate over all test cases
+		for (let testCase = 0; testCase < IP.Inputs.length; testCase++) {
+			const inputs = IP.Inputs[testCase];
+			const expectedOutput = IP.Output[testCase].toString().trim();
+			const inputArgs = inputs.join(' '); // Convert inputs to space-separated string for C++
+
+			const timestamp = new Date().getTime();
+			const filePath = `${process.env.TEMP_FOLDER_URL}/${timestamp}_${testCase}`;
+
+			// Prepare the C++ code template
+			const codeTemplate = `
+				#include <bits/stdc++.h>
+				using namespace std;
+
+				// User-defined code will be injected here
+				${cppCode}
+
+				int main() {
+					// Input arguments (from the test case)
+					${inputs.map((input, index) => `auto arg${index} = ${input};`).join('\n')}
+
+					// Call the user’s main function
+					cout << MainFunction(${inputs.map((_, index) => `arg${index}`).join(', ')}) << endl;
+
+					return 0;
+				}
+			`;
+
+			// Write the C++ code to a file
+			await new Promise((resolve, reject) => {
+				fs.writeFile(`${filePath}.cpp`, codeTemplate, (err) => {
+					if (err) {
+						reject(err);
+					} else {
+						resolve();
+					}
+				});
+			});
+
+			// Compile the C++ code using g++
+			await new Promise((resolve, reject) => {
+				exec(`g++ -o ${filePath}_program ${filePath}.cpp`, (error, stdout, stderr) => {
+					if (error) {
+						console.error(`Compilation error: ${error.message}`);
+						// Clean up on error
+						fs.unlink(`${filePath}.cpp`, () => {});
+						allTestResults.push({
+							testCase: testCase + 1,
+							success: false,
+							message: `Compilation failed: ${error.message}`,
+							expectedOutput: null,
+							actualOutput: null
+						});
+						resolve();
+						return;
+					}
+					if (stderr) {
+						console.error(`Compilation stderr: ${stderr}`);
+						fs.unlink(`${filePath}.cpp`, () => {});
+						allTestResults.push({
+							testCase: testCase + 1,
+							success: false,
+							message: `Compilation error: ${stderr}`,
+							expectedOutput: null,
+							actualOutput: null
+						});
+						resolve();
+						return;
+					}
+
+					// Compilation successful, run the compiled program
+					const runResult = spawnSync(`${filePath}_program`, [], { encoding: 'utf8' });
+
+					if (runResult.error) {
+						console.error(`Execution error: ${runResult.error.message}`);
+						allTestResults.push({
+							testCase: testCase + 1,
+							success: false,
+							message: `Execution failed: ${runResult.error.message}`,
+							expectedOutput: null,
+							actualOutput: null
+						});
+						resolve();
+						return;
+					}
+
+					if (runResult.stderr) {
+						console.error(`Execution stderr: ${runResult.stderr}`);
+						allTestResults.push({
+							testCase: testCase + 1,
+							success: false,
+							message: `Runtime error: ${runResult.stderr}`,
+							expectedOutput: null,
+							actualOutput: null
+						});
+						resolve();
+						return;
+					}
+
+					const actualOutput = runResult.stdout.toString().trim();
+
+					// Clean up the compiled files after execution
+					fs.unlink(`${filePath}.cpp`, () => {});
+					fs.unlink(`${filePath}_program.exe`, () => {});
+
+					// Compare actual vs expected output
+					allTestResults.push({
+						testCase: testCase + 1,
+						success: actualOutput === expectedOutput,
+						message: actualOutput === expectedOutput
+							? 'Execution successful'
+							: 'Execution successful but output mismatch',
+						expectedOutput,
+						actualOutput
+					});
+
+					resolve();
+				});
+			});
+		}
+
+		// Return all test results after all test cases have been executed
+		return res.status(200).json({
+			message: 'All test cases executed',
+			results: allTestResults
+		});
+	} catch (error) {
+		console.error(`Internal server error: ${error.message}`);
+		res.status(500).json({ success: false, message: 'Internal server error: ' + error.message });
+	}
+};
+
+
+const runCppTestCase = async (req, res) => {
+	try {
+		let { Id, cppCode, testCase } = req.body;
+
+		if (testCase === undefined || testCase <= 0) {
+			return res.status(400).json({ error: 'Invalid test case', message: 'Please provide a valid testCase' });
+		}
+		testCase--;
+
+
+		const IP = await Product.findOne({ Id: Id }, { Inputs: 1, Output: 1, _id: 0 });
+		if (!IP) {
+			return res.status(404).json({ error: 'Not found', message: 'No problem found for the given ID' });
+		}
+
+		// Check if the provided testCase exists
+		if (testCase >= IP.Inputs.length || !IP.Output[testCase]) {
+			return res.status(404).json({ error: 'Test case not found', message: `No test case found for the given index ${testCase + 1}` });
+		}
+
+		const inputs = IP.Inputs[testCase];
+		const expectedOutput = IP.Output[testCase].toString().trim();
+
+		const timestamp = new Date().getTime();
 		const filePath = `${process.env.TEMP_FOLDER_URL}/${timestamp}`;
 
-		console.log(IP);
+		// Prepare the C++ code template
+		const inputArgs = inputs.join(' '); // Convert inputs to a space-separated string for C++
+
+		if (!cppCode || !cppCode.includes('MainFunction')) {
+			return res.status(400).json({ error: 'Invalid C++ code', message: 'Please provide valid C++ code with the required function' });
+		}
+
+		const codeTemplate = `
+			#include <bits/stdc++.h>
+			using namespace std;
+
+			// User-defined code will be injected here
+			${cppCode}
+
+			int main() {
+				// Input arguments (from the test case)
+				${inputs.map((input, index) => `auto arg${index} = ${input};`).join('\n')}
+
+				// Call the user’s main function (e.g., factorial, etc.)
+				cout << MainFunction(${inputs.map((_, index) => `arg${index}`).join(', ')}) << endl;
+
+				return 0;
+			}
+		`;
+
 		// Write the C++ code to a file
-		fs.writeFileSync(`${process.env.TEMP_FOLDER_URL}/${timestamp}.cpp`, cppCode);
+		await new Promise((resolve, reject) => {
+			fs.writeFile(`${filePath}.cpp`, codeTemplate, (err) => {
+				if (err) {
+					reject(err);
+				} else {
+					resolve();
+				}
+			});
+		});
 
 		// Compile the C++ code using g++
-		exec(`g++ -o compiled_program ${process.env.TEMP_FOLDER_URL}/${timestamp}.cpp`, (error, stdout, stderr) => {
+		exec(`g++ -o ${filePath}_program ${filePath}.cpp`, (error, stdout, stderr) => {
 			if (error) {
 				console.error(`Compilation error: ${error.message}`);
-				res.status(500).json({ error: 'Compilation error', message: error.message });
-				return;
+				fs.unlink(`${filePath}.cpp`, () => {}); // Clean up file on error
+				return res.status(500).json({ error: 'Compilation error', message: error.message });
 			}
 			if (stderr) {
 				console.error(`Compilation stderr: ${stderr}`);
-				res.status(500).json({ error: 'Compilation error', message: stderr });
-				return;
+				fs.unlink(`${filePath}.cpp`, () => {}); // Clean up file on error
+				return res.status(500).json({ error: 'Compilation error', message: stderr });
 			}
 
 			// Compilation successful
 			console.log('Compilation successful');
 
-			const inputs = IP[0].Inputs;
-			let output = ''; // Initialize an empty string to store the output
+			// Run the compiled C++ program
+			const runResult = spawnSync(`${filePath}_program`, [], { encoding: 'utf8' });
 
-			// Iterate over each inner array in the Inputs field
-			for (let i = 0; i < inputs.length; i++) {
-				const innerArray = inputs[i];
-
-				console.log(innerArray);
-				const runResult = spawnSync('compiled_program', innerArray, { encoding: 'utf8' });
-				output += `Input: ${innerArray.join(' ')}\n${runResult.stdout}\n`; // Append the input and output to the output string
+			if (runResult.error) {
+				console.error(`Execution error: ${runResult.error.message}`);
+				return res.status(500).json({ error: 'Execution error', message: runResult.error.message });
 			}
 
-			fs.unlink(`${filePath}.cpp`, (err) => {
-				if (err) {
-				console.error('Error deleting file:', err);
-				return;
-				}
+			if (runResult.stderr) {
+				console.error(`Execution stderr: ${runResult.stderr}`);
+				return res.status(500).json({ error: 'Runtime error', message: runResult.stderr });
+			}
 
-				console.log('File deleted successfully');
-			});
+			const actualOutput = runResult.stdout.toString().trim();
 
-			console.log(output)
-			res.status(200).json({ message: 'Execution successful', output });
+			// Clean up the compiled files after execution
+			fs.unlink(`${filePath}.cpp`, () => {});
+			fs.unlink(`${filePath}_program.exe`, () => {});
+
+			// Compare the result with the expected output
+			if (actualOutput === expectedOutput) {
+				return res.status(200).json({ message: 'Execution successful', actualOutput, expectedOutput, success: true });
+			} else {
+				return res.status(200).json({ message: 'Execution successful but output mismatch', actualOutput, expectedOutput, success: false });
+			}
 		});
-	} catch (err) {
-		console.error(`Internal server error: ${err.message}`);
-		res.status(500).json({ error: 'Internal server error', message: err.message });
+	} catch (error) {
+		console.error(`Internal server error: ${error.message}`);
+		res.status(500).json({ success: false, message: 'Internal server error' + error.message });
 	}
-};
-
-const cppT1 = async (req, res) => {
-  try {
-    const { Id, cppCode } = req.body;
-    const IP = await Product.find({ Id: Id }, { Inputs: 1, Output: 1, _id: 0 });
-    var timestamp = new Date().getTime();
-    const filePath = `${process.env.TEMP_FOLDER_URL}/${timestamp}`;
-
-    console.log(IP);
-    // Write the C++ code to a file
-    fs.writeFileSync(`${filePath}.cpp`, cppCode);
-
-    // Compile the C++ code using g++
-    exec(`g++ -o compiled_program ${process.env.TEMP_FOLDER_URL}/${timestamp}.cpp`, (error, stdout, stderr) => {
-      if (error) {
-        console.error(`Compilation error: ${error.message}`);
-        res.status(500).json({ error: 'Compilation error', message: error.message });
-        return;
-      }
-      if (stderr) {
-        console.error(`Compilation stderr: ${stderr}`);
-        res.status(500).json({ error: 'Compilation error', message: stderr });
-        return;
-      }
-
-      // Compilation successful
-      console.log('Compilation successful');
-
-      const inputs = IP[0].Inputs;
-      let output = ''; // Initialize an empty string to store the output
-
-      // Iterate over each inner array in the Inputs field
-
-      const innerArray = inputs[0];
-
-      console.log(innerArray);
-      const runResult = spawnSync('compiled_program', innerArray, { encoding: 'utf8' });
-      output += `Input: ${innerArray.join(' ')}     ‎ ‎ ‎ ‎ ‎      Output: ${runResult.stdout}\n`; // Append the input and output to the output string
-
-      console.log(IP[0].Output[0])
-      console.log(runResult.stdout)
-      fs.unlink(`${filePath}.cpp`, (err) => {
-        if (err) {
-          console.error('Error deleting file:', err);
-          return;
-        }
-
-        console.log('File deleted successfully');
-      });
-
-      if (runResult.stdout.trim() === IP[0].Output[0].toString().trim()) {
-        console.log(true);
-        res.status(200).json({ message: 'Execution successful', output, success: true });
-      } else {
-        console.log(false);
-        res.status(200).json({ message: 'Execution successful', output, success: false });
-      }
-
-
-    });
-  } catch (err) {
-    console.error(`Internal server error: ${err.message}`);
-    res.status(500).json({ error: 'Internal server error', message: err.message });
-  }
-
-}
-
-const cppT2 = async (req, res) => {
-  try {
-    const { Id, cppCode } = req.body;
-    const IP = await Product.find({ Id: Id }, { Inputs: 1, Output: 1, _id: 0 });
-    var timestamp = new Date().getTime();
-    const filePath = `${process.env.TEMP_FOLDER_URL}/${timestamp}`;
-
-    console.log(IP);
-    // Write the C++ code to a file
-    fs.writeFileSync(`${filePath}.cpp`, cppCode);
-
-    // Compile the C++ code using g++
-    exec(`g++ -o compiled_program ${filePath}.cpp`, (error, stdout, stderr) => {
-      if (error) {
-        console.error(`Compilation error: ${error.message}`);
-        res.status(500).json({ error: 'Compilation error', message: error.message });
-        return;
-      }
-      if (stderr) {
-        console.error(`Compilation stderr: ${stderr}`);
-        res.status(500).json({ error: 'Compilation error', message: stderr });
-        return;
-      }
-
-      // Compilation successful
-      console.log('Compilation successful');
-
-      const inputs = IP[0].Inputs;
-      let output = ''; // Initialize an empty string to store the output
-
-      // Iterate over each inner array in the Inputs field
-
-      const innerArray = inputs[1];
-
-      console.log(innerArray);
-      const runResult = spawnSync('compiled_program', innerArray, { encoding: 'utf8' });
-      output += `Input: ${innerArray.join(' ')}     ‎ ‎ ‎ ‎ ‎      Output: ${runResult.stdout}\n`; // Append the input and output to the output string
-
-      console.log(IP[0].Output[1])
-      console.log(runResult.stdout)
-      fs.unlink(`${filePath}.cpp`, (err) => {
-        if (err) {
-          console.error('Error deleting file:', err);
-          return;
-        }
-
-        console.log('File deleted successfully');
-      });
-
-      if (runResult.stdout.trim() === IP[0].Output[1].toString().trim()) {
-        console.log(true);
-        res.status(200).json({ message: 'Execution successful', output, success: true });
-      } else {
-        console.log(false);
-        res.status(200).json({ message: 'Execution successful', output, success: false });
-      }
-
-
-    });
-  } catch (err) {
-    console.error(`Internal server error: ${err.message}`);
-    res.status(500).json({ error: 'Internal server error', message: err.message });
-  }
-
 }
 
 /** JAVA **/
@@ -1067,4 +1136,4 @@ const runPyT2 = async (req, res) => {
 };
 
 
-module.exports = { runAllTestCaseForJS, runJsTestCase, runPyT1, runPyT2, runCT1, runCT2, javaT2, javaT1, cppT1, cppT2, compileCpp, displayQues, compileAndRunJava, compileAndRunC, compileAndRunPython }
+module.exports = { runAllTestCaseForJS, runJsTestCase, runAllCppTestCases, runCppTestCase, runPyT1, runPyT2, runCT1, runCT2, javaT2, javaT1, displayQues, compileAndRunJava, compileAndRunC, compileAndRunPython }

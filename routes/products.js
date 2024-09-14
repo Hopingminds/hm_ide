@@ -1,15 +1,14 @@
 const express=require('express')
 const router= express.Router();
-const{runJsT1,runJsT2,runPyT1,runPyT2,runCT2,runCT1,javaT2,javaT1,cppT1,cppT2,compileCpp,displayQues,compileAndRunJava,compileAndRunC,compileAndRunPython, compileAndRunJavascript, runJsTestCase, runAllTestCaseForJS}=require('../controllers/products')
+const{runPyT1,runPyT2,runCT2,runCT1,javaT2,javaT1,displayQues,compileAndRunJava,compileAndRunC,compileAndRunPython, runJsTestCase, runAllTestCaseForJS, runCppTestCase, runAllCppTestCases}=require('../controllers/products')
 
 router.get('/allQues',displayQues)
 
-router.post('/runJS',runAllTestCaseForJS)
+router.post('/runAllTestCaseForJS',runAllTestCaseForJS)
 router.post('/runJsTestCase',runJsTestCase)
 
-router.post('/runcpp',compileCpp)
-router.post('/runcppT1',cppT1)
-router.post('/runcppT2',cppT2)
+router.post('/runAllCppTestCases',runAllCppTestCases)
+router.post('/runCppTestCase',runCppTestCase)
 
 router.post('/runJava',compileAndRunJava)
 router.post('/runJavaT1',javaT1)
