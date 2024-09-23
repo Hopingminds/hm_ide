@@ -68,8 +68,8 @@ const runAllTestCaseForJS = async (req, res) => {
 							testCase: i + 1,
 							success: false,
 							message: `Execution failed: ${error.message}`,
-							expectedOutput: null,
-							actualOutput: null
+							expectedOutput: expectedOutput,
+							actualOutput: 'Execution failed'
 						});
 						fs.unlink(`${filePath}.js`, (err) => {
 							if (err) {
@@ -166,7 +166,7 @@ const runJsTestCase = async (req, res) => {
 			if (error) {
 				console.error(`Execution Error: ${error.message}`);
 				fs.unlink(`${filePath}.js`, () => { }); // Clean up file on error
-				return res.status(500).json({ success: false, message: `Execution failed: ${error.message}`, stderr: stderr.trim() });
+				return res.status(500).json({ success: false, message: `Execution failed: ${error.message}`, expectedOutput: expectedOutput, actualOutput: 'Execution failed', stderr: stderr.trim() });
 			}
 
 			// Compare the result with the expected output
