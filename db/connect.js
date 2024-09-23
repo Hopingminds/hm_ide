@@ -1,11 +1,11 @@
+const mongoose = require('mongoose');
+require('dotenv/config');
 
-const mongoose=require('mongoose')
-
-
-
-const connectDB=(uri)=>{
-    console.log(`connect database`)
-    return mongoose.connect(uri)
+async function connect() {
+    mongoose.set('strictQuery', true);
+    const db = await mongoose.connect(process.env.MONGODB_URL);
+    console.log("Database Connected");
+    return db;
 }
 
-module.exports=connectDB
+module.exports = connect;
