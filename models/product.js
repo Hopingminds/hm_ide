@@ -13,18 +13,60 @@ const productSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    Inputs: {
-        type: Array,
-        required: true
-    },
-    Output: {
-        type: Array,
-        required: true
-    },
     Solution: {
         type: String,
         required: true
     },
+    initial_user_func: {
+        cpp: {
+            initial_code: { 
+                type: String,
+                required: true,
+            },
+        },
+        java: {
+            initial_code: { 
+                type: String,
+                required: true,
+            },
+        },
+        javascript: {
+            initial_code: { 
+                type: String,
+                required: true,
+            },
+        },
+        python: {
+            initial_code: { 
+                type: String,
+                required: true,
+            },
+        },
+    },
+    sample_test_cases: [
+        {
+            input: {
+                type: String,
+                required: true,
+            },
+            expected_output: {
+                type: String,
+                required: true,
+            }
+        }
+    ],
+    final_test_case: [
+        {
+            input: {
+                type: String,
+                required: true,
+            },
+            expected_output: {
+                type: String,
+                required: true,
+            }
+        }
+    ],
     levels: {
         type: String,
         required: true
