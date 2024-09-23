@@ -4,13 +4,13 @@ const cors = require('cors'); // Import the cors package
 const morgan = require('morgan');
 const connectDB = require('./db/connect')
 const ServerStatus = require('./middleware/helper.js');
-const { default: CorsConfig } = require('./cors.config');
+const CorsConfig = require('./cors.config');
 const product_routes = require("./routes/products");
 
 const app = express();
 
 app.use(cors({
-	origin: '*',
+	origin: CorsConfig,
 	credentials: true,
 })); // Enable CORS for all routes
 
