@@ -10,7 +10,7 @@ const product_routes = require("./routes/products");
 const app = express();
 
 app.use(cors({
-	origin: CorsConfig,
+	origin: '*',
 	credentials: true,
 })); // Enable CORS for all routes
 
