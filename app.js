@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express')
 const cors = require('cors'); // Import the cors package
 const morgan = require('morgan');
@@ -7,7 +8,6 @@ const { default: CorsConfig } = require('./cors.config');
 const product_routes = require("./routes/products");
 
 const app = express();
-require('dotenv').config()
 
 app.use(cors({
 	origin: CorsConfig,
