@@ -20,10 +20,10 @@ const displayQues = async (req, res) => {
 /** JAVASCRIPT **/
 const runAllTestCaseForJS = async (req, res) => {
 	try {
-		let { Id, jsCode } = req.body;
+		let { Id, code } = req.body;
 
-		if (!Id || !jsCode) {
-			return res.status(400).json({ error: 'Missing required fields', message: 'Please provide Id and jsCode' });
+		if (!Id || !code) {
+			return res.status(400).json({ error: 'Missing required fields', message: 'Please provide Id and code' });
 		}
 
 		// Fetch the problem by Id
@@ -44,8 +44,8 @@ const runAllTestCaseForJS = async (req, res) => {
 			const timestamp = new Date().getTime();
 			const filePath = `${process.env.TEMP_FOLDER_URL}/${timestamp}`;
 
-			// Replace process.argv[2] in jsCode with the inputArgs to inject the input directly
-			let modifiedJsCode = jsCode.replace('process.argv[2]', JSON.stringify(testCase.input));
+			// Replace process.argv[2] in code with the inputArgs to inject the input directly
+			let modifiedJsCode = code.replace('process.argv[2]', JSON.stringify(testCase.input));
 
 			// Write the JavaScript code to a file
 			await new Promise((resolve, reject) => {
@@ -67,7 +67,8 @@ const runAllTestCaseForJS = async (req, res) => {
 						results.push({
 							testCase: i + 1,
 							success: false,
-							message: `Execution failed: ${error.message}`,
+							message: `Execution failed`,
+							error: stderr.trim(),
 							expectedOutput: expectedOutput,
 							actualOutput: 'Execution failed'
 						});
@@ -121,11 +122,11 @@ const runJsTestCase = async (req, res) => {
 	let filePath;
 
 	try {
-		let { Id, jsCode, testCase } = req.body;
+		let { Id, code, testCase } = req.body;
 
 		// Validate required fields
-		if (!Id || !jsCode || !testCase) {
-			return res.status(400).json({ error: 'Missing required fields', message: 'Please provide Id, jsCode, and testCase' });
+		if (!Id || !code || !testCase) {
+			return res.status(400).json({ error: 'Missing required fields', message: 'Please provide Id, code, and testCase' });
 		}
 
 		testCase--; // Adjust to 0-based index
@@ -147,12 +148,12 @@ const runJsTestCase = async (req, res) => {
 		const timestamp = new Date().getTime();
 		filePath = `${process.env.TEMP_FOLDER_URL}/${timestamp}`;
 
-		// Replace `process.argv[2]` in jsCode with the inputArgs to inject the input directly
-		jsCode = jsCode.replace('process.argv[2]', JSON.stringify(sampleTestCase.input));
+		// Replace `process.argv[2]` in code with the inputArgs to inject the input directly
+		code = code.replace('process.argv[2]', JSON.stringify(sampleTestCase.input));
 
 		// Write the JavaScript code to a file
 		await new Promise((resolve, reject) => {
-			fs.writeFile(`${filePath}.js`, jsCode, (err) => {
+			fs.writeFile(`${filePath}.js`, code, (err) => {
 				if (err) {
 					reject(err);
 				} else {
@@ -166,7 +167,13 @@ const runJsTestCase = async (req, res) => {
 			if (error) {
 				console.error(`Execution Error: ${error.message}`);
 				fs.unlink(`${filePath}.js`, () => { }); // Clean up file on error
-				return res.status(500).json({ success: false, message: `Execution failed: ${error.message}`, expectedOutput: expectedOutput, actualOutput: 'Execution failed', stderr: stderr.trim() });
+				return res.status(500).json({ 
+					success: false, 
+					message: `Execution failed`,
+					error: stderr.trim(),
+					expectedOutput: expectedOutput, 
+					actualOutput: 'Execution failed'
+				});
 			}
 
 			// Compare the result with the expected output
@@ -188,12 +195,113 @@ const runJsTestCase = async (req, res) => {
 }
 
 
+const submitCodeForJS = async (req, res) => {
+	try {
+		let { Id, code } = req.body;
+
+		if (!Id || !code) {
+			return res.status(400).json({ error: 'Missing required fields', message: 'Please provide Id and code' });
+		}
+
+		// Fetch the problem by Id
+		const product = await Product.findOne({ Id: Id }, { final_test_case: 1, _id: 0 });
+		if (!product) {
+			return res.status(404).json({ success: false, message: 'No problem found for the given ID' });
+		}
+
+		// Prepare an array to collect results for each test case
+		const results = [];
+
+		// Iterate over each test case
+		for (let i = 0; i < product.final_test_case.length; i++) {
+			const testCase = product.final_test_case[i];
+
+			// Prepare the input and expected output from the final_test_case
+			const expectedOutput = testCase.expected_output.toString().trim();
+			const timestamp = new Date().getTime();
+			const filePath = `${process.env.TEMP_FOLDER_URL}/${timestamp}`;
+
+			// Replace process.argv[2] in code with the inputArgs to inject the input directly
+			let modifiedJsCode = code.replace('process.argv[2]', JSON.stringify(testCase.input));
+
+			// Write the JavaScript code to a file
+			await new Promise((resolve, reject) => {
+				fs.writeFile(`${filePath}.js`, modifiedJsCode, (err) => {
+					if (err) {
+						reject(err);
+					} else {
+						resolve();
+					}
+				});
+			});
+
+			// Execute the JavaScript code using Node.js
+			await new Promise((resolve, reject) => {
+				exec(`node ${filePath}.js`, { timeout: 20000 }, (error, stdout, stderr) => {
+					if (error) {
+						console.error(`Error: ${error.message}`);
+						// If there's an error, record it for this test case and move on to the next
+						results.push({
+							testCase: i + 1,
+							success: false,
+							message: `Execution failed`,
+							error: stderr.trim(),
+							expectedOutput: expectedOutput,
+							actualOutput: 'Execution failed'
+						});
+						fs.unlink(`${filePath}.js`, (err) => {
+							if (err) {
+								console.error('Error deleting file:', err);
+							}
+						});
+						resolve();
+						return;
+					}
+
+					// Compare the result with the expected output
+					const actualOutput = stdout.toString().trim();
+
+					// Clean up the file after execution
+					fs.unlink(`${filePath}.js`, (err) => {
+						if (err) {
+							console.error('Error deleting file:', err);
+						}
+					});
+
+					// Push the result of this test case to the array
+					results.push({
+						testCase: i + 1,
+						success: actualOutput === expectedOutput,
+						message: actualOutput === expectedOutput
+							? 'Execution successful'
+							: 'Execution successful but output mismatch',
+						expectedOutput,
+						actualOutput
+					});
+					resolve();
+				});
+			});
+		}
+
+		// Return all test results after all test cases have been executed
+		return res.status(200).json({
+			success: true,
+			message: 'All test cases executed',
+			// results: results
+		});
+	} catch (error) {
+		console.error(`Internal server error: ${error.message}`);
+		res.status(500).json({ success: false, message: 'Internal server error: ' + error.message });
+	}
+};
+
+
 /** C++ **/
 const runAllCppTestCases = async (req, res) => {
 	try {
-		let { Id, cppCode } = req.body;
+		let { Id, code } = req.body;
 
-		if (!Id || !cppCode) {
+		if (!Id || !code) {
 			return res.status(400).json({ error: 'Missing or invalid fields', message: 'Please provide a valid Id and C++ code with the required function' });
 		}
 
@@ -214,8 +322,8 @@ const runAllCppTestCases = async (req, res) => {
 			const timestamp = new Date().getTime();
 			const filePath = `${process.env.TEMP_FOLDER_URL}/${timestamp}`;
 
-			// Replace process.argv[2] in cppCode with the inputArgs to inject the input directly
-			let modifiedCppCode = cppCode.replace('argv[1]', JSON.stringify(testCase.input));
+			// Replace process.argv[2] in code with the inputArgs to inject the input directly
+			let modifiedCppCode = code.replace('argv[1]', JSON.stringify(testCase.input));
 
 			// Write the C++ code to a file
 			await new Promise((resolve, reject) => {
@@ -330,9 +438,10 @@ const runAllCppTestCases = async (req, res) => {
 
 const runCppTestCase = async (req, res) => {
 	try {
-		let { Id, cppCode, testCase } = req.body;
+		let { Id, code, testCase } = req.body;
+		
 
-		if (!Id || !cppCode || !testCase) {
+		if (!Id || !code || !testCase) {
 			return res.status(400).json({ error: 'Missing or invalid fields', message: 'Please provide a valid Id and C++ code with the required function' });
 		}
 		testCase--;
@@ -355,12 +464,12 @@ const runCppTestCase = async (req, res) => {
 		const timestamp = new Date().getTime();
 		filePath = `${process.env.TEMP_FOLDER_URL}/${timestamp}`;
 
-		// Replace `process.argv[2]` in cppCode with the inputArgs to inject the input directly
-		cppCode = cppCode.replace('argv[1]', JSON.stringify(sampleTestCase.input));
+		// Replace `process.argv[2]` in code with the inputArgs to inject the input directly
+		code = code.replace('argv[1]', JSON.stringify(sampleTestCase.input));
 
 		// Write the C++ code to a file
 		await new Promise((resolve, reject) => {
-			fs.writeFile(`${filePath}.cpp`, cppCode, (err) => {
+			fs.writeFile(`${filePath}.cpp`, code, (err) => {
 				if (err) {
 					reject(err);
 				} else {
@@ -424,10 +533,10 @@ const runCppTestCase = async (req, res) => {
 /** JAVA **/
 const runAllJavaTestCases = async (req, res) => {
 	try {
-		let { Id, javaCode } = req.body;
+		let { Id, code } = req.body;
 
 		// Check for missing or invalid fields in the request body
-		if (!Id || !javaCode) {
+		if (!Id || !code) {
 			return res.status(400).json({
 				success: false,
 				error: 'Missing or invalid fields',
@@ -456,9 +565,9 @@ const runAllJavaTestCases = async (req, res) => {
 			const filePath = `${process.env.TEMP_FOLDER_URL}/class_${timestamp}_${i}`;
 
 			// Replace 'public class <any_class_name>' with the timestamp-based class name
-			let modifiedJavaCode = javaCode.replace(/public\s+class\s+(\w+)/, `public class ${className}`);
+			let modifiedJavaCode = code.replace(/public\s+class\s+(\w+)/, `public class ${className}`);
 
-			// Replace `process.argv[2]` in javaCode with the inputArgs to inject the input directly
+			// Replace `process.argv[2]` in code with the inputArgs to inject the input directly
 			modifiedJavaCode = modifiedJavaCode.replace('process.argv[2]', JSON.stringify(sampleTestCase.input));
 
 
@@ -543,10 +652,10 @@ const runJavaTestCase = async (req, res) => {
 	let responseSent = false; // Flag to track if a response has been sent
 
 	try {
-		let { Id, javaCode, testCase } = req.body;
+		let { Id, code, testCase } = req.body;
 
 		// Check for missing or invalid fields in the request body
-		if (!Id || !javaCode || !testCase) {
+		if (!Id || !code || !testCase) {
 			return res.status(400).json({
 				success: false,
 				error: 'Missing or invalid fields',
@@ -580,13 +689,13 @@ const runJavaTestCase = async (req, res) => {
 		const filePath = `${process.env.TEMP_FOLDER_URL}/class_${timestamp}`;
 
 		// Use regex to match and replace 'public class <any_class_name>' with the timestamp-based class name
-		javaCode = javaCode.replace(/public\s+class\s+(\w+)/, `public class ${className}`);
+		code = code.replace(/public\s+class\s+(\w+)/, `public class ${className}`);
 
-		// Replace `process.argv[2]` in javaCode with the inputArgs to inject the input directly
-		javaCode = javaCode.replace('process.argv[2]', JSON.stringify(sampleTestCase.input));
+		// Replace `process.argv[2]` in code with the inputArgs to inject the input directly
+		code = code.replace('process.argv[2]', JSON.stringify(sampleTestCase.input));
 
 		// Write the Java code to a file
-		fs.writeFileSync(`${filePath}.java`, javaCode);
+		fs.writeFileSync(`${filePath}.java`, code);
 
 		// Compile the Java code
 		await new Promise((resolve, reject) => {
@@ -922,13 +1031,13 @@ const runCT2 = async (req, res) => {
 /** PYTHON **/
 const compileAndRunPython = async (req, res) => {
   try {
-    const { Id, pythonCode } = req.body;
+    const { Id, code } = req.body;
     const IP = await Product.find({ Id: Id }, { Inputs: 1, _id: 0 });
     const timestamp = new Date().getTime();
     const filePath = `${process.env.TEMP_FOLDER_URL}/${timestamp}`;
 
     // Write the Python code to a file
-    fs.writeFileSync(`${filePath}.py`, pythonCode);
+    fs.writeFileSync(`${filePath}.py`, code);
 
     const inputs = IP[0].Inputs;
     for (let i = 0; i < inputs.length; i++) {
@@ -975,11 +1084,11 @@ const runAllPythonTestCases = async (req, res) => {
     let responseSent = false; // To prevent multiple responses
 
     try {
-        let { Id, pythonCode } = req.body;
+        let { Id, code } = req.body;
 
         // Validate required fields
-        if (!Id || !pythonCode) {
-            return res.status(400).json({ error: 'Missing required fields', message: 'Please provide Id and pythonCode' });
+        if (!Id || !code) {
+            return res.status(400).json({ error: 'Missing required fields', message: 'Please provide Id and code' });
         }
 
         // Fetch the problem by Id
@@ -999,8 +1108,8 @@ const runAllPythonTestCases = async (req, res) => {
             const sampleTestCase = product.sample_test_cases[i];
             const expectedOutput = sampleTestCase.expected_output.toString().trim();
 
-            // Replace `sys.argv[1]` in pythonCode with the inputArgs to inject the input directly
-            let currentPythonCode = pythonCode.replace('sys.argv[1]', JSON.stringify(sampleTestCase.input));
+            // Replace `sys.argv[1]` in code with the inputArgs to inject the input directly
+            let currentPythonCode = code.replace('sys.argv[1]', JSON.stringify(sampleTestCase.input));
 
             // Write the Python code to a file
             await fs.promises.writeFile(`${filePath}.py`, currentPythonCode);
@@ -1072,11 +1181,11 @@ const runPythonTestCase = async (req, res) => {
     let responseSent = false; // To prevent multiple responses
 
     try {
-        let { Id, pythonCode, testCase } = req.body;
+        let { Id, code, testCase } = req.body;
 
         // Validate required fields
-        if (!Id || !pythonCode || !testCase) {
-            return res.status(400).json({ error: 'Missing required fields', message: 'Please provide Id, pythonCode, and testCase' });
+        if (!Id || !code || !testCase) {
+            return res.status(400).json({ error: 'Missing required fields', message: 'Please provide Id, code, and testCase' });
         }
 
         testCase--; // Adjust to 0-based index
@@ -1098,11 +1207,11 @@ const runPythonTestCase = async (req, res) => {
         const timestamp = new Date().getTime();
         filePath = `${process.env.TEMP_FOLDER_URL}/${timestamp}`;
 
-        // Replace `sys.argv[1]` in pythonCode with the inputArgs to inject the input directly
-        pythonCode = pythonCode.replace('sys.argv[1]', JSON.stringify(sampleTestCase.input));
+        // Replace `sys.argv[1]` in code with the inputArgs to inject the input directly
+        code = code.replace('sys.argv[1]', JSON.stringify(sampleTestCase.input));
 
         // Write the Python code to a file
-        await fs.promises.writeFile(`${filePath}.py`, pythonCode);
+        await fs.promises.writeFile(`${filePath}.py`, code);
 
         // Execute the Python script
         const runProcess = exec(`python ${filePath}.py ${sampleTestCase.input}`, { stdio: 'pipe' });
@@ -1164,121 +1273,4 @@ const runPythonTestCase = async (req, res) => {
     }
 };
 
-const runPyT1 = async (req, res) => {
-  try {
-    const { Id, pythonCode } = req.body;
-    const IP = await Product.find({ Id: Id }, { Inputs: 1, Output: 1, _id: 0 });
-    const timestamp = new Date().getTime();
-    const filePath = `${process.env.TEMP_FOLDER_URL}/${timestamp}`;
-    // Write the Python code to a file
-    fs.writeFileSync(`${filePath}.py`, pythonCode);
-
-    const inputs = IP[0].Inputs;
-
-    const innerArray = inputs[0];
-    console.log(innerArray);
-
-    // Run the Python program using python
-    const inputArgs = innerArray.join(' '); // Convert the innerArray to space-separated string
-    await new Promise((resolve, reject) => {
-      const runProcess = exec(`python ${filePath}.py ${inputArgs}`, { stdio: 'pipe' });
-
-      runProcess.stdout.on('data', (data) => {
-        if (data.trim() === IP[0].Output[0].toString().trim()) {
-          output = ' '
-          output += `Input: ${innerArray.join(' ')}     ‎ ‎ ‎ ‎ ‎      Output: ${data}\n`;
-          console.log(true);
-          res.status(200).json({ message: 'Execution successful', output, success: true });
-        } else {
-          console.log(false);
-          res.status(200).json({ message: 'Execution successful', output, success: false });
-        }
-      });
-
-      runProcess.stderr.on('data', (data) => {
-        console.error(`Error: ${data}`);
-      });
-
-      runProcess.on('close', (code) => {
-        console.log(`Child process exited with code ${code}`);
-        resolve();
-      });
-    });
-
-    fs.unlink(`${filePath}.py`, (err) => {
-      if (err) {
-        console.error('Error deleting file:', err);
-        return;
-      }
-    
-      console.log('File deleted successfully');
-    });
-
-
-
-  } catch (err) {
-    console.error(`Internal server error: ${err.message}`);
-    res.status(500).json({ error: 'Internal server error', message: err.message });
-  }
-};
-
-const runPyT2 = async (req, res) => {
-  try {
-    const { Id, pythonCode } = req.body;
-    const IP = await Product.find({ Id: Id }, { Inputs: 1, Output: 1, _id: 0 });
-    const timestamp = new Date().getTime();
-
-    const filePath = `${process.env.TEMP_FOLDER_URL}/${timestamp}`;
-    // Write the Python code to a file
-    fs.writeFileSync(`${filePath}.py`, pythonCode);
-
-    const inputs = IP[0].Inputs;
-
-    const innerArray = inputs[1];
-    console.log(innerArray);
-
-    // Run the Python program using python
-    const inputArgs = innerArray.join(' '); // Convert the innerArray to space-separated string
-    await new Promise((resolve, reject) => {
-      const runProcess = exec(`python ${filePath}.py ${inputArgs}`, { stdio: 'pipe' });
-
-      runProcess.stdout.on('data', (data) => {
-        if (data.trim() === IP[0].Output[1].toString().trim()) {
-          output = ' '
-          output += `Input: ${innerArray.join(' ')}     ‎ ‎ ‎ ‎ ‎      Output: ${data}\n`;
-          console.log(true);
-          res.status(200).json({ message: 'Execution successful', output, success: true });
-        } else {
-          console.log(false);
-          res.status(200).json({ message: 'Execution successful', success: false });
-        }
-      });
-
-      runProcess.stderr.on('data', (data) => {
-        console.error(`Error: ${data}`);
-      });
-
-      runProcess.on('close', (code) => {
-        console.log(`Child process exited with code ${code}`);
-        resolve();
-      });
-    });
-    fs.unlink(`${filePath}.py`, (err) => {
-      if (err) {
-        console.error('Error deleting file:', err);
-        return;
-      }
-    
-      console.log('File deleted successfully');
-    });
-
-
-
-  } catch (err) {
-    console.error(`Internal server error: ${err.message}`);
-    res.status(500).json({ error: 'Internal server error', message: err.message });
-  }
-};
-
-
-module.exports = { runAllTestCaseForJS, runJsTestCase, runAllCppTestCases, runCppTestCase, runAllJavaTestCases, runJavaTestCase, runAllPythonTestCases, runPythonTestCase, runPyT1, runPyT2, runCT1, runCT2, displayQues, compileAndRunC, compileAndRunPython }
+module.exports = { runAllTestCaseForJS, runJsTestCase, submitCodeForJS, runAllCppTestCases, runCppTestCase, runAllJavaTestCases, runJavaTestCase, runAllPythonTestCases, runPythonTestCase, runCT1, runCT2, displayQues, compileAndRunC, compileAndRunPython }
