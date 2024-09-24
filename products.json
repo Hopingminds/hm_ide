@@ -1,113 +1,140 @@
 [
-  {
-    "Name": "Calculate Factorial",
-    "Id": 4,
-    "Ques": "Write a function to calculate the factorial of a given number.",
-    "Solution": "function factorial(n) {\n  if (n === 0) {\n    return 1;\n  }\n  return n * factorial(n - 1);\n}\n\nconsole.log(factorial(5)); // Output: 120",
-    "initial_user_func": {
-      "cpp": {
-        "initial_code": "// Initial C++ code here\n"
-      },
-      "java": {
-        "initial_code": "// Initial Java code here\n"
-      },
-      "javascript": {
-        "initial_code": "// Initial JavaScript code here\n"
-      },
-      "python": {
-        "initial_code": "# Initial Python code here\n"
-      }
-    },
-    "sample_test_cases": [
-      {
-        "input": "8",
-        "expected_output": "40320"
-      },
-      {
-        "input": "3",
-        "expected_output": "6"
-      }
-    ],
-    "final_test_case": [
-      {
-        "input": "0",
-        "expected_output": "1"
-      }
-    ],
-    "levels": "Intermediate"
-  },
-  {
-    "Name": "Palindrome Check",
-    "Id": 2,
-    "Ques": "Write a function to check if a string is a palindrome.",
-    "Solution": "function isPalindrome(str) {\n  return str === str.split('').reverse().join('');\n}\n\nconsole.log(isPalindrome('racecar')); // Output: true",
-    "initial_user_func": {
-      "cpp": {
-        "initial_code": "// Initial C++ code here\n"
-      },
-      "java": {
-        "initial_code": "// Initial Java code here\n"
-      },
-      "javascript": {
-        "initial_code": "// Initial JavaScript code here\n"
-      },
-      "python": {
-        "initial_code": "# Initial Python code here\n"
-      }
-    },
-    "sample_test_cases": [
-      {
-        "input": "racecar",
-        "expected_output": "true"
-      },
-      {
-        "input": "hello",
-        "expected_output": "false"
-      }
-    ],
-    "final_test_case": [
-      {
-        "input": "madam",
-        "expected_output": "true"
-      }
-    ],
-    "levels": "Beginner"
-  },
-  {
-    "Name": "Find Maximum Value",
-    "Id": 3,
-    "Ques": "Write a function to find the maximum value in an array of numbers.",
-    "Solution": "function findMax(arr) {\n  return Math.max(...arr);\n}\n\nconsole.log(findMax([1, 5, 3, 9])); // Output: 9",
-    "initial_user_func": {
-      "cpp": {
-        "initial_code": "// Initial C++ code here\n"
-      },
-      "java": {
-        "initial_code": "// Initial Java code here\n"
-      },
-      "javascript": {
-        "initial_code": "// Initial JavaScript code here\n"
-      },
-      "python": {
-        "initial_code": "# Initial Python code here\n"
-      }
-    },
-    "sample_test_cases": [
-      {
-        "input": "1, 5, 3, 9",
-        "expected_output": "9"
-      },
-      {
-        "input": "10, 2, 8, 4",
-        "expected_output": "10"
-      }
-    ],
-    "final_test_case": [
-      {
-        "input": "7, 11, 2, 15",
-        "expected_output": "15"
-      }
-    ],
-    "levels": "Intermediate"
-  }
+	{
+		"_id": {
+			"$oid": "66e7dd89ff326f6095a24c05"
+		},
+		"Name": "Calculate Factorial",
+		"Id": 4,
+		"Ques": "Write a function to calculate the factorial of a given number.",
+		"Solution": "function factorial(n) {\n  if (n === 0) {\n    return 1;\n  }\n  return n * factorial(n - 1);\n}\n\nconsole.log(factorial(5)); // Output: 120",
+		"initial_user_func": {
+			"cpp": {
+				"initial_code": "// Initial C++ code here\n"
+			},
+			"java": {
+				"initial_code": "// Initial Java code here\n"
+			},
+			"javascript": {
+				"initial_code": "function factorial(n) {\\n  if (n === 0) {\\n    return 1;\\n  }\\n  return n * factorial(n - 1);\\n}\\nconst input = parseInt(process.argv[2]);\\nif (!isNaN(input)) {\\n  console.log(factorial(input)); // Call the function with user input and print result\\n} else {\\n  console.log('Please provide a valid number');\\n}"
+			},
+			"python": {
+				"initial_code": "import sys\\n\\ndef factorial(n):\\n    if n == 0:\\n      return 1\\n    return n * factorial(n - 1)\\n\\nif len(sys.argv) > 1:\\n    try:\\n        input_value = int(sys.argv[1])\\n        print(factorial(input_value))\\n    except ValueError:\\n        print('Please provide a valid number')\\nelse:\\n    print('Please provide a number as a command-line argument')"
+			}
+		},
+		"problem_solutions": {
+			"cpp": "",
+			"java": "",
+			"javascript": "",
+			"python": ""
+		},
+		"sample_test_cases": [
+			{
+				"input": "8",
+				"expected_output": "40320"
+			},
+			{
+				"input": "3",
+				"expected_output": "6"
+			}
+		],
+		"final_test_case": [
+			{
+				"input": "0",
+				"expected_output": "1"
+			}
+		],
+		"levels": "Intermediate"
+	},
+	{
+		"_id": {
+			"$oid": "66e7dd89ff326f6095a24c07"
+		},
+		"Name": "Find Maximum Value",
+		"Id": 3,
+		"Ques": "Write a function to find the maximum value in an array of numbers.",
+		"Solution": "function findMax(arr) {\n  return Math.max(...arr);\n}\n\nconsole.log(findMax([1, 5, 3, 9])); // Output: 9",
+		"initial_user_func": {
+			"cpp": {
+				"initial_code": "// Initial C++ code here\n"
+			},
+			"java": {
+				"initial_code": "// Initial Java code here\n"
+			},
+			"javascript": {
+				"initial_code": "function findMax(arr) {\\n  return Math.max(...arr);\\n}\\nconst input = process.argv[2];\\n const inputArray = input.split(',').map(num => Number(num.trim()));\\nif (Array.isArray(inputArray)) {\\n  console.log(findMax(inputArray)); // Call the function with user input and print result\\n} else {\\n  console.log('Please provide a valid array');\\n}"
+			},
+			"python": {
+				"initial_code": "# Initial Python code here\n"
+			}
+		},
+		"problem_solutions": {
+			"cpp": "",
+			"java": "",
+			"javascript": "",
+			"python": ""
+		},
+		"sample_test_cases": [
+			{
+				"input": "1, 5, 3, 9",
+				"expected_output": "9"
+			},
+			{
+				"input": "10, 2, 8, 4",
+				"expected_output": "10"
+			}
+		],
+		"final_test_case": [
+			{
+				"input": "7, 11, 2, 15",
+				"expected_output": "15"
+			}
+		],
+		"levels": "Intermediate"
+	},
+	{
+		"_id": {
+			"$oid": "66e7dd89ff326f6095a24c06"
+		},
+		"Name": "Palindrome Check",
+		"Id": 2,
+		"Ques": "Write a function to check if a string is a palindrome.",
+		"Solution": "function isPalindrome(str) {\n  return str === str.split('').reverse().join('');\n}\n\nconsole.log(isPalindrome('racecar')); // Output: true",
+		"initial_user_func": {
+			"cpp": {
+				"initial_code": "// Initial C++ code here\n"
+			},
+			"java": {
+				"initial_code": "import java.util.*;\\n\\n public class PalindromeClass {\\n    public static boolean isPalindrome(String str) {\\n        String reversedStr = new StringBuilder(str).reverse().toString();\\n        return str.equals(reversedStr);\\n    }\\n    public static void main(String[] args) {\\n        String input = process.argv[2];\\n        System.out.println(isPalindrome(input));\\n    }\\n}"
+			},
+			"javascript": {
+				"initial_code": "function isPalindrome(str) {\\n  return str === str.split('').reverse().join('');\\n}\\nconst input = 'process.argv[2]';\\nif (input) {\\n  console.log(isPalindrome(input)); // Call the function with user input and print result\\n} else {\\n  console.log('Please provide a valid string');\\n}"
+			},
+			"python": {
+				"initial_code": "# Initial Python code here\n"
+			}
+		},
+		"sample_test_cases": [
+			{
+				"input": "racecar",
+				"expected_output": "true"
+			},
+			{
+				"input": "hello",
+				"expected_output": "false"
+			}
+		],
+		"problem_solutions": {
+			"cpp": "",
+			"java": "",
+			"javascript": "",
+			"python": ""
+		},
+		"final_test_case": [
+			{
+				"input": "madam",
+				"expected_output": "true"
+			}
+		],
+		"levels": "Beginner"
+	}
 ]

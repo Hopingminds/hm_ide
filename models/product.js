@@ -67,6 +67,20 @@ const productSchema = new mongoose.Schema({
             }
         }
     ],
+    problem_solutions: {
+        cpp: {
+            type: String,
+        },
+        java: {
+            type: String,
+        },
+        javascript: {
+            type: String,
+        },
+        python: {
+            type: String,
+        },
+    },
     levels: {
         type: String,
         required: true

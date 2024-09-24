@@ -1,12 +1,13 @@
 const express = require('express')
 const router = express.Router();
-const { runCT2, runCT1, displayQues, compileAndRunC, runJsTestCase, runAllTestCaseForJS, runCppTestCase, runAllCppTestCases, runJavaTestCase, runAllJavaTestCases, runPythonTestCase, runAllPythonTestCases, submitCodeForJS } = require('../controllers/products')
+const { runCT2, runCT1, displayQues, compileAndRunC, runJsTestCase, runAllTestCaseForJS, runCppTestCase, runAllCppTestCases, runJavaTestCase, runAllJavaTestCases, runPythonTestCase, runAllPythonTestCases, submitCodeForJS, customInputForJs } = require('../controllers/products')
 
 router.get('/allQues', displayQues)
 
 router.post('/runAllTestCaseForJS', runAllTestCaseForJS)
 router.post('/runJsTestCase', runJsTestCase)
 router.post('/submitCodeForJS', submitCodeForJS)
+router.post('/customInputForJs', customInputForJs)
 
 router.post('/runAllCppTestCases', runAllCppTestCases)
 router.post('/runCppTestCase', runCppTestCase)

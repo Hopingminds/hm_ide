@@ -296,6 +296,101 @@ const submitCodeForJS = async (req, res) => {
 };
 
 
+const customInputForJs = async (req, res) => {
+	let filePath;
+	let solutionFilePath;
+
+	try {
+		let { Id, code, input } = req.body;
+
+		// Validate required fields
+		if (!Id || !code || !input) {
+			return res.status(400).json({ error: 'Missing required fields', message: 'Please provide Id, code, and input' });
+		}
+
+		// Fetch the problem by Id
+		const product = await Product.findOne({ Id: Id }, { sample_test_cases: 1, problem_solutions: 1, _id: 0 });
+		if (!product) {
+			return res.status(404).json({ success: false, message: 'No problem found for the given ID' });
+		}
+		
+		let solutionCode = product.problem_solutions.javascript;
+
+		// Properly format the code if it's single line (remove escape characters like \n)
+        solutionCode = solutionCode.split('\\n').join('\n');
+
+		const timestamp = new Date().getTime();
+		filePath = `${process.env.TEMP_FOLDER_URL}/${timestamp}`;
+		solutionFilePath = `${process.env.TEMP_FOLDER_URL}/${timestamp}`;
+
+		// Replace `process.argv[2]` in code with the inputArgs to inject the input directly
+		code = code.replace('process.argv[2]', JSON.stringify(input));
+		solutionCode = solutionCode.replace('process.argv[2]', JSON.stringify(input));
+
+		// Write the JavaScript code to a file
+		await Promise.all([
+			fs.promises.writeFile(`${filePath}.js`, code),
+			fs.promises.writeFile(`${solutionFilePath}_sol.js`, solutionCode)
+		]);
+
+		// Execute the JavaScript Solution code using Node.js with a timeout of 20sec
+		const solutionOutput = await executeNodeFile(`${solutionFilePath}_sol.js`);
+		if (!solutionOutput.success) {
+			fs.promises.unlink(`${solutionFilePath}_sol.js`, (err) => { });
+			return res.status(500).json({
+				success: false,
+				message: 'Compilation of solution failed',
+				error: solutionOutput.error,
+				actualOutput: 'Compilation failed'
+			});
+		}
+
+		// Execute the JavaScript code using Node.js with a timeout of 20sec
+		const actualOutput = await executeNodeFile(`${filePath}.js`);
+		if (!actualOutput.success) {
+			fs.promises.unlink(`${filePath}.js`, (err) => { });
+			fs.promises.unlink(`${solutionFilePath}_sol.js`, (err) => { });
+			return res.status(500).json({
+				success: false,
+				message: 'Compilation of user code failed',
+				error: actualOutput.error,
+				actualOutput: 'Compilation failed'
+			});
+		}
+
+		// Compare the result with the expected output
+		const isMatch = actualOutput.stdout.trim() === solutionOutput.stdout.trim();
+
+		// Clean up the file after execution
+		fs.promises.unlink(`${filePath}.js`, (err) => { });
+		fs.promises.unlink(`${solutionFilePath}_sol.js`, (err) => { });
+
+		return res.status(200).json({
+			message: isMatch ? 'Execution successful' : 'Execution successful but output mismatch',
+			actualOutput: actualOutput.stdout.trim(),
+			expectedOutput: solutionOutput.stdout.trim(),
+			success: isMatch
+		});
+	} catch (error) {
+		console.error(`Internal server error: ${error.message}`);
+		res.status(500).json({ success: false, message: 'Internal server error: ' + error.message });
+	}
+}
+
+// Helper function to execute a Node.js file and return the output
+const executeNodeFile = (filePath) => {
+	return new Promise((resolve) => {
+		exec(`node ${filePath}`, { timeout: 20000 }, (error, stdout, stderr) => {
+			if (error) {
+				console.error(`Execution Error: ${error.message}`);
+				resolve({ success: false, error: stderr.trim() });
+			} else {
+				resolve({ success: true, stdout: stdout.toString() });
+			}
+		});
+	});
+};
+
 /** C++ **/
 const runAllCppTestCases = async (req, res) => {
 	try {
@@ -439,7 +534,6 @@ const runAllCppTestCases = async (req, res) => {
 const runCppTestCase = async (req, res) => {
 	try {
 		let { Id, code, testCase } = req.body;
-		
 
 		if (!Id || !code || !testCase) {
 			return res.status(400).json({ error: 'Missing or invalid fields', message: 'Please provide a valid Id and C++ code with the required function' });
@@ -1273,4 +1367,4 @@ const runPythonTestCase = async (req, res) => {
     }
 };
 
-module.exports = { runAllTestCaseForJS, runJsTestCase, submitCodeForJS, runAllCppTestCases, runCppTestCase, runAllJavaTestCases, runJavaTestCase, runAllPythonTestCases, runPythonTestCase, runCT1, runCT2, displayQues, compileAndRunC, compileAndRunPython }
+module.exports = { runAllTestCaseForJS, runJsTestCase, submitCodeForJS, customInputForJs, runAllCppTestCases, runCppTestCase, runAllJavaTestCases, runJavaTestCase, runAllPythonTestCases, runPythonTestCase, runCT1, runCT2, displayQues, compileAndRunC, compileAndRunPython }
