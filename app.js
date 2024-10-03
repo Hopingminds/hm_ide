@@ -6,6 +6,9 @@ const connectDB = require('./db/connect')
 const ServerStatus = require('./middleware/helper.js');
 const CorsConfig = require('./cors.config');
 const product_routes = require("./routes/products");
+const ProblemRoutes = require("./routes/ProblemRoutes");
+const ProblemAdminRoutes = require("./routes/ProblemAdminRoutes");
+const CodingAssessmentRoutes = require("./routes/CodingAssessmentRoutes");
 
 const app = express();
 
@@ -36,6 +39,9 @@ app.get('/', ServerStatus.getServerLoadInfo, (req, res) => {
 
 app.use(express.json());
 app.use("/api", product_routes)
+app.use("/api", ProblemRoutes)
+app.use("/api", ProblemAdminRoutes)
+app.use("/api", CodingAssessmentRoutes)
 
 // Error handling middleware
 app.use((err, req, res, next) => {
