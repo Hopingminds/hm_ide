@@ -106,20 +106,21 @@ function formatDate(dateString) {
 
 const addCandidateForCodingAssessment = async (req, res) => {
     try {
-        let { email, name, phone_number, college_name, year_of_passing, assessmentId } = req.body;
+        let { email, name, phone_number, college, year_of_passing, assessmentId } = req.body;
 
         let hasErrors = false;
+        let result = [];
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
         // Validate email format
         if (email && !emailRegex.test(email)) {
-            result.errors.push({ success: false, message: 'Invalid email format', email });
+            result.push({ success: false, message: 'Invalid email format', email });
             hasErrors = true;
         }
 
         // Validate and convert phone_number
         if (!phone_number || isNaN(phone_number) || phone_number.toString().length !== 10) {
-            result.errors.push({ success: false, message: 'Phone number is required, must be a number, and exactly 10 digits' });
+            result.push({ success: false, message: 'Phone number is required, must be a number, and exactly 10 digits' });
             hasErrors = true;
         } else {
             phone_number = Number(phone_number); // Convert to Number
@@ -127,7 +128,7 @@ const addCandidateForCodingAssessment = async (req, res) => {
 
         // Validate and convert year_of_passing
         if (!year_of_passing || isNaN(year_of_passing) || year_of_passing.toString().length !== 4) {
-            result.errors.push({ success: false, message: 'Year of passing is required, must be a number, and exactly 4 digits' });
+            result.push({ success: false, message: 'Year of passing is required, must be a number, and exactly 4 digits' });
             hasErrors = true;
         } else {
             year_of_passing = Number(year_of_passing); // Convert to Number
@@ -135,11 +136,11 @@ const addCandidateForCodingAssessment = async (req, res) => {
 
         // Validate required fields
         if (!name) {
-            result.errors.push({ success: false, message: 'Name is required' });
+            result.push({ success: false, message: 'Name is required' });
             hasErrors = true;
         }
-        if (!college_name) {
-            result.errors.push({ success: false, message: 'College name is required' });
+        if (!college) {
+            result.push({ success: false, message: 'College name is required' });
             hasErrors = true;
         }
 
@@ -158,7 +159,7 @@ const addCandidateForCodingAssessment = async (req, res) => {
             name,
             phone_number,
             year_of_passing,
-            college_name
+            college
         });
         await user.save();
 
@@ -286,7 +287,7 @@ const addCandidatesForCodingAssessment = async (req, res) => {
             const name = row[headers.indexOf('name')];
             let phone_number = row[headers.indexOf('phone_number')];
             let year_of_passing = row[headers.indexOf('year_of_passing')];
-            const college_name = row[headers.indexOf('college_name')];
+            const college = row[headers.indexOf('college')];
 
             const rowResult = { row: i + 1, success: false, errors: [] };
             let hasErrors = false;
@@ -318,7 +319,7 @@ const addCandidatesForCodingAssessment = async (req, res) => {
                 rowResult.errors.push({ message: 'Name is required' });
                 hasErrors = true;
             }
-            if (!college_name) {
+            if (!college) {
                 rowResult.errors.push({ message: 'College name is required' });
                 hasErrors = true;
             }
@@ -336,7 +337,7 @@ const addCandidatesForCodingAssessment = async (req, res) => {
                     name,
                     phone_number,
                     year_of_passing,
-                    college_name
+                    college
                 });
                 await user.save();
 
