@@ -404,4 +404,105 @@ const runBaseTestforJava = async (req, res) => {
     }
 }
 
-module.exports = { runBaseTestforJS, runBaseTestforCpp, runBaseTestforJava }
+/** PYTHON **/
+const runBaseTestforPython= async (req, res) => {
+    try {
+        const { assessmentid, userId } = req.userAccess;
+        let { problemId, submitted_solution } = req.body;
+        
+        if (!problemId || !submitted_solution) {
+			return res.status(400).json({ error: 'Missing required fields', message: 'Please provide problemId and submitted_solution' });
+		}
+
+		// Fetch the problem by Id
+		const problem = await ProblemModel.findById(problemId).select('sample_test_cases');
+		if (!problem) {
+			return res.status(404).json({ success: false, message: 'No problem found for the given ID' });
+		}
+
+        const SubmissionReport = await SubmissionsModel.findOne({ user: userId, coding_assessment: assessmentid }).populate({ path: 'assigned_problems_set.problem', select: '-problem_solutions -final_test_case' })
+
+        if (!SubmissionReport) {
+            return res.status(404).json({ success: false, message: 'Assessment not Started' });
+        }
+
+        if(SubmissionReport.isCompleted || SubmissionReport.isSuspended){
+            return res.status(404).json({ success: false, message: 'Solution can\'t be submitted as the assessment is already completed' });
+        }
+
+        const problemIndex = SubmissionReport.assigned_problems_set.findIndex(problem => problem.problem._id.toString() === problemId);
+
+        if (problemIndex === -1) {
+            return res.status(404).json({ success: false, message: 'Problem is not assigned.' });
+        }
+
+		// Prepare an array to collect results for each test case
+		const results = [];
+        
+        for (let i = 0; i < problem.sample_test_cases.length; i++) {
+            const sampleTestCase = problem.sample_test_cases[i];
+            const expectedOutput = sampleTestCase.expected_output.toString().trim();
+			const timestamp = new Date().getTime();
+			const filePath = `${process.env.TEMP_FOLDER_URL}/${timestamp}`;
+			
+            // Replace `sys.argv[1]` in submitted_solution with the inputArgs to inject the input directly
+            let currentPythonCode = submitted_solution.replace('sys.argv[1]', JSON.stringify(sampleTestCase.input));
+            
+            // Write the Python submitted_solution to a file
+            await fs.promises.writeFile(`${filePath}.py`, currentPythonCode);
+            
+            // Execute the Python script
+            const runProcess = exec(`python ${filePath}.py ${sampleTestCase.input}`, { stdio: 'pipe' });
+            
+            let output = ''; // Initialize output variable
+            let errorOutput = ''; // Capture stderr in case of an error
+            
+            runProcess.stdout.on('data', (data) => {
+                output += data; // Accumulate output
+            });
+
+            runProcess.stderr.on('data', (data) => {
+                errorOutput += data; // Accumulate error output
+            });
+
+            // Await the close of the Python process
+            await new Promise((resolve) => {
+                runProcess.on('close', (code) => {
+                    let result = { testCase: i + 1, success: false, message: '', input:sampleTestCase.input, actualOutput: output.trim(), expectedOutput: expectedOutput };
+
+                    // Handle successful execution
+                    if (code === 0 && output.trim() === expectedOutput) {
+                        result.success = true;
+                        result.message = `Test case ${i + 1} passed successfully.`;
+                    } 
+                    // Handle output mismatch
+                    else if (code === 0) {
+                        result.message = `Test case ${i + 1} failed: Output mismatch`;
+                        result.actualOutput = output.trim();
+                    } 
+                    // Handle script error
+                    else {
+                        result.message = `Test case ${i + 1} failed: Python script error with exit code ${code}`;
+                        result.actualOutput = errorOutput || 'Unknown error';
+                    }
+
+                    // Add the result for the current test case to the results array
+                    results.push(result);
+
+                    // Cleanup the Python file after execution
+                    fs.unlink(`${filePath}.py`, (err) => {
+                        if (err) console.error('Error deleting file:', err);
+                    });
+
+                    resolve(); // Proceed to the next test case
+                });
+            });
+        }
+
+        return res.status(200).json({ success: true, message: 'Test cases executed', results });
+    } catch (error) {
+        console.error(`Internal server error: ${error.message}`);
+		return res.status(500).json({ success: false, message: 'Internal server error: ' + error.message });
+    }
+}
+module.exports = { runBaseTestforJS, runBaseTestforCpp, runBaseTestforJava, runBaseTestforPython }

@@ -12,7 +12,7 @@ const { registerMail } = require("./MailerController");
 const UserModel = require('../models/User.model');
 const CodingAssessmentModel = require('../models/CodingAssessment.model');
 const SubmissionsModel = require('../models/Submissions.model');
-const { JavaScriptFinalTestCompiler, CppFinalTestCompiler, JavaFinalTestCompiler } = require('./Compilers');
+const { JavaScriptFinalTestCompiler, CppFinalTestCompiler, JavaFinalTestCompiler, PythonFinalTestCompiler } = require('./Compilers');
 
 const createProblem = async (req, res) => {
     try {
@@ -628,9 +628,9 @@ const submitProblemSolution = async (req, res) => {
         else if(selected_language === 'Java'){
             result = await JavaFinalTestCompiler(problemId, submitted_solution, res);
         }
-        // else if(selected_language === 'Python'){
-            
-        // }
+        else if(selected_language === 'Python'){
+            result = await PythonFinalTestCompiler(problemId, submitted_solution, res);
+        }
         else{
             return res.status(404).json({ success: false, message: 'Selected language is not available yet. Available Languages are (JavaScript, C++, Java )', selected_language });
         }

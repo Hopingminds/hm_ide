@@ -6,10 +6,6 @@ const ProblemModel = require("../models/Problem.model");
 
 const JavaScriptFinalTestCompiler = async (problemId, submitted_solution, res) => {
     try {
-        if (!problemId || !submitted_solution) {
-			return res.status(400).json({ error: 'Missing required fields', message: 'Please provide problemId and submitted_solution' });
-		}
-
         const problem = await ProblemModel.findById(problemId);
         if (!problem) {
             return res.status(404).json({ success: false, message: 'No problem found for the given ID' });
@@ -99,10 +95,6 @@ const JavaScriptFinalTestCompiler = async (problemId, submitted_solution, res) =
 
 const CppFinalTestCompiler = async (problemId, submitted_solution, res) => {
 	try {
-		if (!problemId || !submitted_solution) {
-			return res.status(400).json({ error: 'Missing required fields', message: 'Please provide problemId and submitted_solution' });
-		}
-
         const problem = await ProblemModel.findById(problemId);
         if (!problem) {
             return res.status(404).json({ success: false, message: 'No problem found for the given ID' });
@@ -231,10 +223,6 @@ const CppFinalTestCompiler = async (problemId, submitted_solution, res) => {
 
 const JavaFinalTestCompiler = async (problemId, submitted_solution, res) => {
 	try {
-		if (!problemId || !submitted_solution) {
-			return res.status(400).json({ error: 'Missing required fields', message: 'Please provide problemId and submitted_solution' });
-		}
-
         const problem = await ProblemModel.findById(problemId);
         if (!problem) {
             return res.status(404).json({ success: false, message: 'No problem found for the given ID' });
@@ -327,4 +315,81 @@ const JavaFinalTestCompiler = async (problemId, submitted_solution, res) => {
 	}
 }
 
-module.exports = { JavaScriptFinalTestCompiler, CppFinalTestCompiler, JavaFinalTestCompiler }
+const PythonFinalTestCompiler = async (problemId, submitted_solution, res) => {
+	try {
+		const problem = await ProblemModel.findById(problemId);
+		if (!problem) {
+			return res.status(404).json({ success: false, message: 'No problem found for the given ID' });
+		}
+		
+		// Prepare an array to collect results for each test case
+		const results = [];
+
+		// Loop through all sample test cases
+        for (let i = 0; i < problem.final_test_case.length; i++) {
+            const sampleTestCase = problem.final_test_case[i];
+            const expectedOutput = sampleTestCase.expected_output.toString().trim();
+			const timestamp = new Date().getTime();
+			const filePath = `${process.env.TEMP_FOLDER_URL}/${timestamp}`;
+			
+            // Replace `sys.argv[1]` in submitted_solution with the inputArgs to inject the input directly
+            let currentPythonCode = submitted_solution.replace('sys.argv[1]', JSON.stringify(sampleTestCase.input));
+
+            // Write the Python submitted_solution to a file
+            await fs.promises.writeFile(`${filePath}.py`, currentPythonCode);
+
+            // Execute the Python script
+            const runProcess = exec(`python ${filePath}.py ${sampleTestCase.input}`, { stdio: 'pipe' });
+
+            let output = ''; // Initialize output variable
+            let errorOutput = ''; // Capture stderr in case of an error
+
+            runProcess.stdout.on('data', (data) => {
+                output += data; // Accumulate output
+            });
+
+            runProcess.stderr.on('data', (data) => {
+                errorOutput += data; // Accumulate error output
+            });
+
+            // Await the close of the Python process
+            await new Promise((resolve) => {
+                runProcess.on('close', (code) => {
+                    let result = { testCase: i + 1, success: false, message: '', input:sampleTestCase.input, actualOutput: output.trim(), expectedOutput: expectedOutput };
+
+                    // Handle successful execution
+                    if (code === 0 && output.trim() === expectedOutput) {
+                        result.success = true;
+                        result.message = `Test case ${i + 1} passed successfully.`;
+                    } 
+                    // Handle output mismatch
+                    else if (code === 0) {
+                        result.message = `Test case ${i + 1} failed: Output mismatch`;
+                        result.actualOutput = output.trim();
+                    } 
+                    // Handle script error
+                    else {
+                        result.message = `Test case ${i + 1} failed: Python script error with exit code ${code}`;
+                        result.actualOutput = errorOutput || 'Unknown error';
+                    }
+
+                    // Add the result for the current test case to the results array
+                    results.push(result);
+
+                    // Cleanup the Python file after execution
+                    fs.unlink(`${filePath}.py`, (err) => {
+                        if (err) console.error('Error deleting file:', err);
+                    });
+
+                    resolve(); // Proceed to the next test case
+                });
+            });
+        }
+
+		return results;
+	} catch (error) {
+		return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+	}	
+}
+
+module.exports = { JavaScriptFinalTestCompiler, CppFinalTestCompiler, JavaFinalTestCompiler, PythonFinalTestCompiler }

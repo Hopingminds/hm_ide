@@ -8,6 +8,7 @@ const AssessmentAuth = require('../middleware/AssessmentAuth');
 router.route('/runBaseTestforJS').post(AssessmentAuth, CompilersController.runBaseTestforJS)
 router.route('/runBaseTestforCpp').post(AssessmentAuth, CompilersController.runBaseTestforCpp)
 router.route('/runBaseTestforJava').post(AssessmentAuth, CompilersController.runBaseTestforJava)
+router.route('/runBaseTestforPython').post(AssessmentAuth, CompilersController.runBaseTestforPython)
 
 // GET ROUTES
 
