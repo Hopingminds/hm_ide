@@ -4,13 +4,15 @@ const fs = require('fs');
 const xlsx = require('xlsx');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const aws = require('aws-sdk');
+const multerS3 = require('multer-s3');
 const AssignedModel = require("../models/Assigned.model");
 const ProblemModel = require("../models/Problem.model");
 const { registerMail } = require("./MailerController");
 const UserModel = require('../models/User.model');
 const CodingAssessmentModel = require('../models/CodingAssessment.model');
 const SubmissionsModel = require('../models/Submissions.model');
-const { JavaScriptFinalTestCompiler } = require('./CompilerController');
+const { JavaScriptFinalTestCompiler } = require('./Compilers');
 
 const createProblem = async (req, res) => {
     try {
@@ -653,4 +655,63 @@ const submitProblemSolution = async (req, res) => {
     }
 }
 
-module.exports = { createProblem, editProblem, deleteProblem, addCandidateForCodingAssessment, addCandidatesForCodingAssessment, upload, getAssessmentDetails, verifyUserAccessForAssessment, startCodingAssessment, getAssesmentQuestion, getAllAssesmentQuestion, submitProblemSolution };
+// Configure AWS SDK v2 for S3
+aws.config.update({
+    secretAccessKey: process.env.AWS_ACCESS_SECRET,
+    accessKeyId: process.env.AWS_ACCESS_KEY,
+    region: process.env.AWS_REGION,
+});
+
+const s3 = new aws.S3(); // S3 client initialization (v2)
+const BUCKET = process.env.AWS_BUCKET;
+
+const uploadAssessentScreenShots = multer({
+    storage: multerS3({
+        s3: s3,
+        acl: 'public-read',
+        bucket: BUCKET,
+        key: function (req, file, cb) {
+            const newFileName = Date.now() + '-' + file.originalname;
+            const fullPath = `CodingAssessment/ScreenShots/${newFileName}`;
+            cb(null, fullPath);
+        },
+        contentType: multerS3.AUTO_CONTENT_TYPE,
+    }),
+});
+
+
+const FinishAssessment = async (req, res) => {
+    try {
+        const { assessmentid, userId } = req.userAccess;
+
+        const { isSuspended, ProctoringScore, remarks, submissionTime } = req.body;
+
+        const SubmissionReport = await SubmissionsModel.findOne({ user: userId, coding_assessment: assessmentid });
+
+        if (!SubmissionReport) {
+            return res.status(404).json({ success: false, message: 'Assessment not Started' });
+        }
+
+        if(SubmissionReport.isCompleted || SubmissionReport.isSuspended){
+            return res.status(404).json({ success: false, message: 'Assessment can\'t be submitted as the assessment is already completed' });
+        }
+
+        // Extract uploaded file URLs
+        const userScreenshots = req.files.map(file => file.location);
+
+        // Parse ProctoringScore object
+        const parsedProctoringScore = JSON.parse(ProctoringScore)
+
+        SubmissionReport.isCompleted = true;
+        SubmissionReport.isSuspended = isSuspended;
+        SubmissionReport.ProctoringScore = parsedProctoringScore;
+        SubmissionReport.remarks = remarks;
+        SubmissionReport.submission_time = submissionTime;
+        SubmissionReport.userScreenshots = userScreenshots;
+        
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    }
+}
+
+module.exports = { createProblem, editProblem, deleteProblem, addCandidateForCodingAssessment, addCandidatesForCodingAssessment, upload, getAssessmentDetails, verifyUserAccessForAssessment, startCodingAssessment, getAssesmentQuestion, getAllAssesmentQuestion, submitProblemSolution, FinishAssessment, uploadAssessentScreenShots };
