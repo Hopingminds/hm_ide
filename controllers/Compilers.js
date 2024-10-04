@@ -331,7 +331,7 @@ const PythonFinalTestCompiler = async (problemId, submitted_solution, res) => {
             const expectedOutput = sampleTestCase.expected_output.toString().trim();
 			const timestamp = new Date().getTime();
 			const filePath = `${process.env.TEMP_FOLDER_URL}/${timestamp}`;
-			
+
             // Replace `sys.argv[1]` in submitted_solution with the inputArgs to inject the input directly
             let currentPythonCode = submitted_solution.replace('sys.argv[1]', JSON.stringify(sampleTestCase.input));
 
@@ -339,7 +339,7 @@ const PythonFinalTestCompiler = async (problemId, submitted_solution, res) => {
             await fs.promises.writeFile(`${filePath}.py`, currentPythonCode);
 
             // Execute the Python script
-            const runProcess = exec(`python ${filePath}.py ${sampleTestCase.input}`, { stdio: 'pipe' });
+            const runProcess = exec(`python3 ${filePath}.py ${sampleTestCase.input}`, { stdio: 'pipe' });
 
             let output = ''; // Initialize output variable
             let errorOutput = ''; // Capture stderr in case of an error

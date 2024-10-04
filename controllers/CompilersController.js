@@ -452,7 +452,7 @@ const runBaseTestforPython= async (req, res) => {
             await fs.promises.writeFile(`${filePath}.py`, currentPythonCode);
             
             // Execute the Python script
-            const runProcess = exec(`python ${filePath}.py ${sampleTestCase.input}`, { stdio: 'pipe' });
+            const runProcess = exec(`python3 ${filePath}.py ${sampleTestCase.input}`, { stdio: 'pipe' });
             
             let output = ''; // Initialize output variable
             let errorOutput = ''; // Capture stderr in case of an error
