@@ -12,7 +12,7 @@ const { registerMail } = require("./MailerController");
 const UserModel = require('../models/User.model');
 const CodingAssessmentModel = require('../models/CodingAssessment.model');
 const SubmissionsModel = require('../models/Submissions.model');
-const { JavaScriptFinalTestCompiler } = require('./Compilers');
+const { JavaScriptFinalTestCompiler, CppFinalTestCompiler, JavaFinalTestCompiler } = require('./Compilers');
 
 const createProblem = async (req, res) => {
     try {
@@ -603,6 +603,10 @@ const submitProblemSolution = async (req, res) => {
 
         const { problemId, submitted_solution, selected_language } = req.body;
 
+        if (!problemId || !submitted_solution || !selected_language) {
+			return res.status(400).json({ error: 'Missing required fields', message: 'Please provide problemId, selected_language and submitted_solution' });
+		}
+
         // Find the UserAssessmentReport for this user and module assessment
         const SubmissionReport = await SubmissionsModel.findOne({ user: userId, coding_assessment: assessmentid }).populate({ path: 'assigned_problems_set.problem', select: '-problem_solutions -final_test_case' })
 
@@ -614,21 +618,21 @@ const submitProblemSolution = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Solution can\'t be submitted as the assessment is already completed' });
         }
         
-        let result;
+        let result = [];
         if(selected_language === 'JavaScript'){
             result = await JavaScriptFinalTestCompiler(problemId, submitted_solution, res);
         }
-        // else if(selected_language === 'C++'){
-            
-        // }
-        // else if(selected_language === 'Java'){
-            
-        // }
+        else if(selected_language === 'C++'){
+            result = await CppFinalTestCompiler(problemId, submitted_solution, res);
+        }
+        else if(selected_language === 'Java'){
+            result = await JavaFinalTestCompiler(problemId, submitted_solution, res);
+        }
         // else if(selected_language === 'Python'){
             
         // }
         else{
-            return res.status(404).json({ success: false, message: 'Selected language is not available yet.', selected_language });
+            return res.status(404).json({ success: false, message: 'Selected language is not available yet. Available Languages are (JavaScript, C++, Java )', selected_language });
         }
 
         // Update or add the submitted solution for the specific problem\
@@ -637,6 +641,7 @@ const submitProblemSolution = async (req, res) => {
         if (problemIndex === -1) {
             return res.status(404).json({ success: false, message: 'Problem is not assigned.' });
         }
+        
 
         const passedCount = result.filter(testCase => testCase.success).length
 
@@ -645,10 +650,9 @@ const submitProblemSolution = async (req, res) => {
         SubmissionReport.assigned_problems_set[problemIndex].isSubmitted = true;
         SubmissionReport.assigned_problems_set[problemIndex].final_test_cases_passed.to = passedCount;
         SubmissionReport.assigned_problems_set[problemIndex].final_test_cases_passed.from = result.length;
-
         await SubmissionReport.save();
 
-        return res.status(200).json({ success: true, message: 'Solution submitted successfully' });
+        return res.status(200).json({ success: true, message: 'Solution submitted successfully', result });
 
     } catch (error) {
         return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });

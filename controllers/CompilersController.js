@@ -281,4 +281,127 @@ const runBaseTestforCpp = async (req, res) => {
     }
 }
 
-module.exports = { runBaseTestforJS, runBaseTestforCpp }
+/** JAVA **/
+const runBaseTestforJava = async (req, res) => {
+    try {
+        const { assessmentid, userId } = req.userAccess;
+        let { problemId, submitted_solution } = req.body;
+        
+        if (!problemId || !submitted_solution) {
+			return res.status(400).json({ error: 'Missing required fields', message: 'Please provide problemId and submitted_solution' });
+		}
+
+		// Fetch the problem by Id
+		const problem = await ProblemModel.findById(problemId).select('sample_test_cases');
+		if (!problem) {
+			return res.status(404).json({ success: false, message: 'No problem found for the given ID' });
+		}
+
+        const SubmissionReport = await SubmissionsModel.findOne({ user: userId, coding_assessment: assessmentid }).populate({ path: 'assigned_problems_set.problem', select: '-problem_solutions -final_test_case' })
+
+        if (!SubmissionReport) {
+            return res.status(404).json({ success: false, message: 'Assessment not Started' });
+        }
+
+        if(SubmissionReport.isCompleted || SubmissionReport.isSuspended){
+            return res.status(404).json({ success: false, message: 'Solution can\'t be submitted as the assessment is already completed' });
+        }
+
+        const problemIndex = SubmissionReport.assigned_problems_set.findIndex(problem => problem.problem._id.toString() === problemId);
+
+        if (problemIndex === -1) {
+            return res.status(404).json({ success: false, message: 'Problem is not assigned.' });
+        }
+
+		// Prepare an array to collect results for each test case
+		const results = [];
+
+        // Iterate over each test case
+		for (let i = 0; i < problem.sample_test_cases.length; i++) {
+			const sampleTestCase = problem.sample_test_cases[i];
+			const expectedOutput = sampleTestCase.expected_output.toString().trim();
+			const timestamp = new Date().getTime();
+			const className = `class_${timestamp}_${i}`;
+			const filePath = `${process.env.TEMP_FOLDER_URL}/class_${timestamp}_${i}`;
+
+			// Replace 'public class <any_class_name>' with the timestamp-based class name
+			let modifiedJavaCode = submitted_solution.replace(/public\s+class\s+(\w+)/, `public class ${className}`);
+
+			// Replace `process.argv[2]` in submitted_solution with the inputArgs to inject the input directly
+			modifiedJavaCode = modifiedJavaCode.replace('process.argv[2]', JSON.stringify(sampleTestCase.input));
+
+
+			// Write the Java submitted_solution to a file
+			fs.writeFileSync(`${filePath}.java`, modifiedJavaCode);
+
+			// Compile the Java submitted_solution
+			await new Promise((resolve, reject) => {
+				exec(`javac ${filePath}.java`, (error, stdout, stderr) => {
+					if (error || stderr) {
+						results.push({
+							testCase: i + 1,
+							success: false,
+							message: 'Compilation Error',
+							error: error ? error.message : stderr
+						});
+						fs.unlinkSync(`${filePath}.java`);
+						if (fs.existsSync(`${filePath}.class`)) fs.unlinkSync(`${filePath}.class`);
+						resolve(); // Proceed to the next test case
+					} else {
+						resolve(); // Compilation succeeded, move to execution
+					}
+				});
+			});
+
+			// If compilation failed, continue to the next test case
+			if (!fs.existsSync(`${filePath}.class`)) continue;
+
+			// Execute the compiled Java class
+			const inputArgs = sampleTestCase.input;
+			const runProcess = exec(`java -classpath ${process.env.TEMP_FOLDER_URL} ${className} ${inputArgs}`);
+
+			await new Promise((resolve) => {
+				runProcess.stdout.on('data', (data) => {
+					const output = data.toString().trim();
+					const success = output === expectedOutput;
+
+					results.push({
+						testCase: i + 1,
+						success,
+						message: success ? 'Execution successful' : 'Execution successful but output mismatch',
+						expectedOutput,
+						actualOutput: output
+					});
+					resolve();
+				});
+
+				runProcess.stderr.on('data', (data) => {
+					results.push({
+						testCase: i + 1,
+						success: false,
+						message: 'Execution Error',
+						error: data.toString()
+					});
+					resolve();
+				});
+
+				runProcess.on('close', (submitted_solution) => {
+					fs.unlinkSync(`${filePath}.java`);
+					if (fs.existsSync(`${filePath}.class`)) fs.unlinkSync(`${filePath}.class`);
+					resolve(); // Proceed to the next test case
+				});
+			});
+		}
+
+		// After all test cases are executed, return the results
+		return res.status(200).json({
+			message: 'All test cases executed',
+			results
+		});
+    } catch (error) {
+        console.error(`Internal server error: ${error.message}`);
+		return res.status(500).json({ success: false, message: 'Internal server error: ' + error.message });
+    }
+}
+
+module.exports = { runBaseTestforJS, runBaseTestforCpp, runBaseTestforJava }
