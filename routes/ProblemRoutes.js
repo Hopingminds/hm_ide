@@ -3,10 +3,11 @@ const router = express.Router();
 
 const ProblemController = require('../controllers/ProblemController');
 const AssessmentAuth = require('../middleware/AssessmentAuth');
+const AdminAuth = require('../middleware/AdminAuth');
 
 // POST ROUTES
-router.route('/addCandidateForCodingAssessment').post(ProblemController.addCandidateForCodingAssessment)
-router.route('/addCandidatesForCodingAssessment').post(ProblemController.upload.single('candidates'), ProblemController.addCandidatesForCodingAssessment)
+router.route('/addCandidateForCodingAssessment').post(AdminAuth, ProblemController.addCandidateForCodingAssessment)
+router.route('/addCandidatesForCodingAssessment').post(AdminAuth, ProblemController.upload.single('candidates'), ProblemController.addCandidatesForCodingAssessment)
 router.route('/startCodingAssessment').post(AssessmentAuth, ProblemController.startCodingAssessment)
 router.route('/submitProblemSolution').post(AssessmentAuth, ProblemController.submitProblemSolution)
 router.route('/finishAssessment').post(AssessmentAuth, ProblemController.uploadAssessentScreenShots.array('userScreenshots', 10), ProblemController.FinishAssessment)
