@@ -10,6 +10,8 @@ router.route('/createCodingAssessment').post(AdminAuth, AssessmentController.cre
 // GET ROUTES
 router.route('/getAllCodingAssessments').get(AdminAuth, AssessmentController.getAllCodingAssessments)
 router.route('/getCodingAssessment/:assessmentId').get(AdminAuth, AssessmentController.getCodingAssessment)
+router.route('/getAllUsersResultForAssessment/:assessmentId').get(AdminAuth, AssessmentController.getAllUsersResultForAssessment)
+router.route('/getUsersResultForAssessment').get(AdminAuth, AssessmentController.getUsersResultForAssessment)
 
 //PUT ROUTES
 router.route('/editCodingAssessment/:assessmentId').put(AdminAuth, AssessmentController.editCodingAssessment)

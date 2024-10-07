@@ -1,4 +1,5 @@
 const CodingAssessmentModel = require("../models/CodingAssessment.model");
+const SubmissionsModel = require("../models/Submissions.model");
 
 
 const createCodingAssessment = async (req, res) => {
@@ -115,4 +116,47 @@ const deleteAssessment = async (req, res) => {
     }
 }
 
-module.exports = { createCodingAssessment, getAllCodingAssessments, getCodingAssessment, editCodingAssessment, deleteAssessment }
+const getAllUsersResultForAssessment = async (req, res) => {
+    try {
+        const { assessmentId } = req.params;
+        if(!assessmentId){
+            return res.status(404).send({ success: false, message: 'moduleAssessmentid is Required' });
+        }
+
+        const SubmissionReports = await SubmissionsModel.find({ coding_assessment: assessmentId}).populate({ path: 'coding_assessment', select: ''}).populate({ path: 'user', select:'-authtoken'}).populate({ path:'assigned_problems_set.problem', select:''})
+
+        if (!SubmissionReports || SubmissionReports.length === 0) {
+            return res.status(404).send({ success: false, message: 'No User\'s Assessment Report Found' });
+        }
+
+        return res.status(200).send({ success: true, SubmissionReports });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    }
+}
+
+const getUsersResultForAssessment = async (req, res) => {
+    try {
+        const { userId, AssessmentId } = req.query;
+
+        const userReports = await SubmissionsModel.findOne({ user: userId, coding_assessment: AssessmentId }).populate({ path: 'coding_assessment', select: ''}).populate({ path: 'user', select:'-authtoken'}).populate({ path:'assigned_problems_set.problem', select:''});
+
+        if (!userReports) {
+            return res.status(200).send({ success: true, message: 'No User\'s Found' });
+        }
+
+        return res.status(200).send({ success: true, userReports });     
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
+    }
+}
+
+module.exports = { 
+    createCodingAssessment, 
+    getAllCodingAssessments, 
+    getCodingAssessment, 
+    editCodingAssessment, 
+    deleteAssessment,
+    getAllUsersResultForAssessment,
+    getUsersResultForAssessment,
+};
