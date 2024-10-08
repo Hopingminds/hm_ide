@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const aws = require('aws-sdk');
 const multerS3 = require('multer-s3');
+const { S3Client } = require("@aws-sdk/client-s3");
 const AssignedModel = require("../models/Assigned.model");
 const ProblemModel = require("../models/Problem.model");
 const { registerMail } = require("./MailerController");
@@ -666,7 +667,14 @@ aws.config.update({
     region: process.env.AWS_REGION,
 });
 
-const s3 = new aws.S3(); // S3 client initialization (v2)
+const s3 = new S3Client({
+    region: process.env.AWS_REGION, // e.g., "us-west-2"
+    credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY,
+        secretAccessKey: process.env.AWS_ACCESS_SECRET,
+    },
+});
+
 const BUCKET = process.env.AWS_BUCKET;
 
 const uploadAssessentScreenShots = multer({
@@ -713,6 +721,10 @@ const FinishAssessment = async (req, res) => {
         SubmissionReport.submission_time = submissionTime;
         SubmissionReport.userScreenshots = userScreenshots;
         
+
+        await SubmissionReport.save();
+        return res.status(200).send({ success: true, message: "Assessment submitted successfully.", SubmissionReport });
+
     } catch (error) {
         return res.status(500).json({ success: false, message: 'Internal server error', error: error.message });
     }
