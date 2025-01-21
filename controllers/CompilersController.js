@@ -395,6 +395,7 @@ const runBaseTestforJava = async (req, res) => {
 
 		// After all test cases are executed, return the results
 		return res.status(200).json({
+			success: true,
 			message: 'All test cases executed',
 			results
 		});
