@@ -157,14 +157,17 @@ const addCandidateForCodingAssessment = async (req, res) => {
         const token = crypto.randomBytes(32).toString('hex');
 
         // Save new user information to the User model
-        const user = new UserModel({
-            email,
-            name,
-            phone_number,
-            year_of_passing,
-            college
-        });
-        await user.save();
+        let user = await UserModel.findOne({email});
+        if(!user){
+            user = new UserModel({
+                email,
+                name,
+                phone_number,
+                year_of_passing,
+                college
+            });
+            await user.save();
+        }
 
         // Create the new candidate object in Assigned model
         const newCandidate = new AssignedModel({
@@ -335,14 +338,17 @@ const addCandidatesForCodingAssessment = async (req, res) => {
             const token = crypto.randomBytes(32).toString('hex');
 
             try {
-                const user = new UserModel({
-                    email,
-                    name,
-                    phone_number,
-                    year_of_passing,
-                    college
-                });
-                await user.save();
+                let user = await UserModel.findOne({email});
+                if(!user){
+                    user = new UserModel({
+                        email,
+                        name,
+                        phone_number,
+                        year_of_passing,
+                        college
+                    });
+                    await user.save();
+                }
 
                 const newCandidate = new AssignedModel({
                     user: user._id, // Reference the newly created user's ObjectId
