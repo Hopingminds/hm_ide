@@ -9,7 +9,7 @@ const multerS3 = require('multer-s3');
 const { S3Client } = require("@aws-sdk/client-s3");
 const AssignedModel = require("../models/Assigned.model");
 const ProblemModel = require("../models/Problem.model");
-const { registerMail } = require("./MailerController");
+const { registerMail, generateEmailTemplate } = require("./MailerController");
 const UserModel = require('../models/User.model');
 const CodingAssessmentModel = require('../models/CodingAssessment.model');
 const SubmissionsModel = require('../models/Submissions.model');
@@ -187,15 +187,14 @@ const addCandidateForCodingAssessment = async (req, res) => {
                 username: name,
                 userEmail: email,
                 subject: `Get Ready for Assessment`,
-                text: `
-                    You have been registered for the ${assessment.assessmentName} assessment. Please click on the link below to start the assessment.</br>
-                    Assessment Start At: ${StartDateForMail}</br></br>
-                    Your Assessment URL is:</br></br>
-                    ${process.env.CLIENT_BASE_URL}?assessmenttoken=${token}</br></br>
-                    Please note that the assessment will start at the specified time and will last till ${EndDateForMail}
-                    Hoping Minds</br>
-                    support@hopingminds.com</br>
-                    9193700050, 9193100050`,
+                text: await generateEmailTemplate(
+                    name,
+                    assessment.timelimit,
+                    StartDateForMail,
+                    EndDateForMail,
+                    assessment.assessmentName,
+                    newCandidate.assigned_token
+                )
             },
         }, {
             status(status) {
@@ -366,15 +365,14 @@ const addCandidatesForCodingAssessment = async (req, res) => {
                         username: name,
                         userEmail: email,
                         subject: `Get Ready for Assessment`,
-                        text: `
-                            You have been registered for the ${Assessment.assessmentName} assessment. Please click on the link below to start the assessment.</br>
-                            Assessment Start At: ${StartDateForMail}</br></br>
-                            Your Assessment URL is:</br></br>
-                            ${process.env.CLIENT_BASE_URL}?assessmenttoken=${token}</br></br>
-                            Please note that the assessment will start at the specified time and will last till ${EndDateForMail}
-                            Hoping Minds</br>
-                            support@hopingminds.com</br>
-                            9193700050, 9193100050`,
+                        text: await generateEmailTemplate(
+                            name,
+                            Assessment.timelimit,
+                            StartDateForMail,
+                            EndDateForMail,
+                            Assessment.assessmentName,
+                            newCandidate.assigned_token
+                        )
                     },
                 }, {
                     status(status) {
